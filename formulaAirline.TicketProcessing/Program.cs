@@ -1,41 +1,25 @@
-﻿
-using RabbitMQ.Client;
+﻿using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
 using System.Xml.Schema;
+using RabbitTicketingService;
+using KafkaTicketingService;
 
-Console.WriteLine("wellcome to ticketing service");
+Console.WriteLine("Welcome to the ticketing service");
 
-var factory = new ConnectionFactory()
+async Task MainAsync()
 {
-    HostName = "localhost",
-    UserName = "guest",
-    Password = "guest",
-    VirtualHost = "/"
-};
+    // Initialize RabbitMQ and Kafka Consumers
+    var rabbitConsumer = new RabbitMQConsumer();
+    var kafkaConsumer = new KafkaConsumer();
 
+    // Start consuming messages from RabbitMQ and Kafka concurrently
+    var rabbitTask = Task.Run(() => rabbitConsumer.ConsumeMessages());
+    var kafkaTask = Task.Run(() => kafkaConsumer.ConsumeMessages());
 
-try
-{
-    using var conn = factory.CreateConnection();
-    using var channel = conn.CreateModel();
-
-    // Declare the queue, ensure it's not exclusive and doesn't auto-delete
-    channel.QueueDeclare("lookings", durable: true, exclusive: false);
-    var consumer = new EventingBasicConsumer(channel);
-    consumer.Received += (model, EventArgs) =>
-    {
-        var body = EventArgs.Body.ToArray();
-        var message = Encoding.UTF8.GetString(body);
-        Console.WriteLine($"New ticket processing is initiated  - {message}");
-    };
-
-    channel.BasicConsume("lookings", true, consumer);
-    Console.ReadKey();
-
-    
+    // Wait for both consumers to complete
+    await Task.WhenAll(rabbitTask, kafkaTask);
 }
-catch (Exception ex)
-{
-    throw new Exception(ex.Message);
-}
+
+// Entry point for your application
+await MainAsync();

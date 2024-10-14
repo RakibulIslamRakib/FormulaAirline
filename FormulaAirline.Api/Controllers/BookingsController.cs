@@ -11,33 +11,45 @@ namespace FormulaAirline.Api.Controllers
     {
         private readonly ILogger<BookingsController> _logger;
         private readonly IMessageProducer _messageProducer;
+        private readonly IKafkaMessageProducer _kafkaMessageProducer;
 
         public static readonly List<Booking> _bookings = new();
 
         public BookingsController(
             ILogger<BookingsController> logger,
-            IMessageProducer messageProducer) 
+            IMessageProducer messageProducer,
+            IKafkaMessageProducer kafkaMessageProducer) 
         {
             _logger = logger;
             _messageProducer = messageProducer;
+            _kafkaMessageProducer = kafkaMessageProducer;
         }
 
         [HttpPost]
-        public IActionResult CreatingBooking(Booking newBooking)
+        public async Task<IActionResult> CreatingBooking( Booking newBooking)
         {
-            if (!ModelState.IsValid) return BadRequest();
-            
-            _bookings.Add(newBooking);
+            // Check if the model state is valid
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            _bookings.Add(newBooking); // Assuming _bookings is a collection of bookings
             try
             {
+                // Send message to RabbitMQ
                 _messageProducer.SendMessage(newBooking);
 
+                // Send message to Kafka asynchronously
+                await _kafkaMessageProducer.SendMessageAsync(newBooking); // Remove Wait()
+
                 return Ok();
-            }catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 return BadRequest(ex.Message);
             }
-        
         }
+
     }
 }
